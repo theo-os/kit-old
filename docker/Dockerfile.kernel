@@ -1,0 +1,26 @@
+FROM debian:11 as kernel-build
+
+ARG ARCH=x86_64
+ARG KERNEL_VERSION=v5.16
+
+RUN apt update -y && \
+    apt install -y \
+    build-essential bc git \
+    libncurses-dev gawk flex bison \
+    openssl libssl-dev dkms libelf-dev \
+    libudev-dev libpci-dev libiberty-dev \
+    autoconf
+
+WORKDIR /linux
+RUN git clone --depth 1 -b ${KERNEL_VERSION} https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git .
+RUN make defconfig && \
+    make oldconfig
+
+# build kernel
+RUN make -j "$(nproc)"
+
+FROM scratch
+ENTRYPOINT []
+CMD []
+WORKDIR /
+COPY --from=kernel-build /linux/arch/x86/boot/bzImage /kernel
