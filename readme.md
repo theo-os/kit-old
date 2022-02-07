@@ -5,7 +5,6 @@ A linux-kit inspired tool that creates bootable disk images from docker images.
 ## Requirements
 
 - podman
-- skopeo
 - grub
 - [rust and cargo](https://rustup.rs)
 - [undocker](https://git.sr.ht/~motiejus/undocker)

@@ -1,12 +1,13 @@
 use std::{io::Write, path::PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KitConfig {
     pub images: Vec<String>,
+    pub folders: Vec<String>,
     pub cmdline: String,
     // the path to the kernel bzImage
     pub kernel: String,
@@ -15,14 +16,14 @@ pub struct KitConfig {
 impl KitConfig {
     pub fn from_file(path: &str) -> Result<KitConfig, Box<dyn std::error::Error>> {
         let file = std::fs::read_to_string(path)?;
-        let config: KitConfig = nu_json::from_str(&file)?;
+        let config: KitConfig = toml::from_str(&file)?;
         Ok(config)
     }
 }
 
 pub async fn build() -> Result<()> {
     // Create a new config from config.hjson
-    let config = KitConfig::from_file("kit.hjson").unwrap();
+    let config = KitConfig::from_file("kit.toml").unwrap();
 
     // if there is already a build directory, delete it
     let build_dir = PathBuf::from("build");
@@ -40,24 +41,21 @@ pub async fn build() -> Result<()> {
     std::fs::create_dir_all(rootfs_path).context("Failed to create rootfs directory")?;
 
     // For each image in the configuration,
-    // utilize skopeo to pull the image into a tar file
+    // utilize `podman save` to pull the image into a tar file
     // and extract it using undocker into the rootfs
     for image in config.images {
         let image_id = image.replace("/", "_").replace(":", "_");
 
         debug!("Building image {}", image);
 
-        let cmd = format!(
-            "skopeo copy  --dest-tls-verify=false docker://{} docker-archive:{image_id}.tar",
-            image
-        );
+        let cmd = format!("podman image save --format=docker-archive -o {image_id}.tar {image}");
         let output = std::process::Command::new("sh")
             .arg("-c")
             .arg(cmd)
             .current_dir(build_dir)
             .stderr(std::process::Stdio::inherit())
             .output()
-            .context("Failed to execute skopeo")?;
+            .context("Failed to save image using podman")?;
         debug!("{}", String::from_utf8_lossy(&output.stdout));
 
         // sh -c undocker image_id.tar - | tar -xvf - -C rootfs
@@ -74,6 +72,18 @@ pub async fn build() -> Result<()> {
             .output()
             .context("Failed to execute undocker")?;
 
+        debug!("{}", String::from_utf8_lossy(&output.stdout));
+    }
+
+    for folder in config.folders {
+        debug!("Copying folder {}", folder);
+        let cmd = format!("cp -r {}/* {}", folder, rootfs_path);
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(cmd)
+            .stderr(std::process::Stdio::inherit())
+            .output()
+            .context("Failed to execute cp")?;
         debug!("{}", String::from_utf8_lossy(&output.stdout));
     }
 
@@ -123,6 +133,15 @@ pub async fn build() -> Result<()> {
     let grub_path = grub_path.to_str().unwrap();
 
     std::fs::create_dir_all(grub_path).context("Failed to create grub directory")?;
+
+    // create rootfs/{etc,sys,proc,run,tmp,dev} if they don't exist
+    let paths = vec!["etc", "sys", "proc", "run", "tmp", "dev", "oldroot"];
+    for path in paths {
+        let path = PathBuf::from(rootfs_path).join(path);
+        if !path.exists() {
+            std::fs::create_dir_all(&path).context("Failed to create directory")?;
+        }
+    }
 
     // copy the rootfs into the image directory
     let cmd = format!("cp -r {}/* {}", rootfs_path, image_path);
