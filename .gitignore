@@ -15,4 +15,4 @@ build
 *.tar.bz2
 data
 /kernel
-kit.hjson
+kit.toml
