@@ -40,11 +40,13 @@ pub async fn build() -> Result<()> {
 
     std::fs::create_dir_all(rootfs_path).context("Failed to create rootfs directory")?;
 
+    info!("Copying images");
+
     // For each image in the configuration,
     // utilize `podman save` to pull the image into a tar file
     // and extract it using undocker into the rootfs
     for image in config.images {
-        let image_id = image.replace("/", "_").replace(":", "_");
+        let image_id = image.replace('/', "_").replace(':', "_");
 
         debug!("Building image {}", image);
 
@@ -105,18 +107,25 @@ pub async fn build() -> Result<()> {
 
     // println!("{}", String::from_utf8_lossy(&output.stdout));
 
-    // Next, create a grub.cfg file in the rootfs
-    let grub_path = PathBuf::from(build_dir).join("grub.cfg");
-    let grub_path = grub_path.to_str().unwrap();
+    // Next, create a limine.cfg file in the rootfs
+    let bootloader_path = PathBuf::from(build_dir).join("limine.cfg");
+    let bootloader_path = bootloader_path.to_str().unwrap();
 
-    let mut file = std::fs::File::create(grub_path).unwrap();
+    let mut file = std::fs::File::create(bootloader_path).unwrap();
     file.write_all(
         format!(
-            "set default=0\n\
-            set timeout=5\n\
-            menuentry \"Linux\" {{\n\
-            linux {} {}\n\
-            }}\n",
+            r#"
+TIMEOUT=5
+GRAPHICS=no
+TEXTMODE=yes
+:Linux
+
+PROTOCOL=linux
+KERNEL_PARTITION=0
+KERNEL_PATH=boot://{}
+KERNEL_PROTO=linux
+CMDLINE="{}"
+            "#,
             config.kernel, config.cmdline
         )
         .as_bytes(),
@@ -129,10 +138,10 @@ pub async fn build() -> Result<()> {
     std::fs::create_dir_all(image_path).context("Failed to create image directory")?;
 
     // create boot/grub in iso/
-    let grub_path = PathBuf::from(image_path).join("boot").join("grub");
-    let grub_path = grub_path.to_str().unwrap();
+    let bootloader_dir = PathBuf::from(image_path).join("boot");
+    let bootloader_dir = bootloader_dir.to_str().unwrap();
 
-    std::fs::create_dir_all(grub_path).context("Failed to create grub directory")?;
+    std::fs::create_dir_all(bootloader_dir).context("Failed to create grub directory")?;
 
     // create rootfs/{etc,sys,proc,run,tmp,dev} if they don't exist
     let paths = vec!["etc", "sys", "proc", "run", "tmp", "dev", "oldroot"];
@@ -155,22 +164,29 @@ pub async fn build() -> Result<()> {
 
     debug!("{}", String::from_utf8_lossy(&output.stdout));
 
-    // copy the grub.cfg into the image directory
-    let cmd = format!("cp {} {}", build_dir.to_string() + "/grub.cfg", grub_path);
+    // copy the build directory limine.cfg into the image directory boot
+    let cmd = format!("cp {} {}", bootloader_path, bootloader_dir);
 
     let output = std::process::Command::new("sh")
         .arg("-c")
         .arg(cmd)
         .stderr(std::process::Stdio::inherit())
         .output()
-        .context("Failed to copy grub.cfg")?;
+        .context("Failed to copy limine.cfg")?;
 
     debug!("{}", String::from_utf8_lossy(&output.stdout));
 
     // Create the image and write it to build/os.iso
-    debug!("Creating final image");
+    info!("Creating final image");
 
-    let cmd = format!("grub-mkrescue -o {}/os.iso {}", build_dir, image_path);
+    let cmd = format!(
+        "xorriso -as mkisofs -b boot/limine-cd.bin \
+        -no-emul-boot -boot-load-size 4 -boot-info-table \
+        --efi-boot boot/limine-eltorito-efi.bin \
+        -efi-boot-part --efi-boot-image --protective-msdos-label \
+        -o {}/os.iso {}",
+        build_dir, image_path
+    );
 
     let output = std::process::Command::new("sh")
         .arg("-c")
@@ -178,6 +194,18 @@ pub async fn build() -> Result<()> {
         .stderr(std::process::Stdio::inherit())
         .output()
         .context("failed to create the iso")?;
+
+    debug!("{}", String::from_utf8_lossy(&output.stdout));
+
+    info!("Installing the limine bootloader");
+
+    let cmd = format!("limine-install {}/os.iso", build_dir);
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .stderr(std::process::Stdio::inherit())
+        .output()
+        .context("Failed to install bootloader")?;
 
     debug!("{}", String::from_utf8_lossy(&output.stdout));
 

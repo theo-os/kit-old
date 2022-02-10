@@ -1,9 +1,9 @@
 images = [
-    "docker.flowtr.dev/timdows/kernel:latest",
+    "docker.flowtr.dev/theos/kernel:latest",
     "docker.flowtr.dev/theos/vsh:latest",
     "docker.flowtr.dev/theos/core:latest",
     "docker.flowtr.dev/theos/coreutils:latest",
 ]
 folders = []
-kernel = "/kernel"
+kernel = "/kernel/bzImage"
 cmdline = "console=tty0 console=ttyS0 console=ttyAMA0 root=/dev/sda rw init=/bin/theos-init"
