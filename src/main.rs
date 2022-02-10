@@ -11,6 +11,7 @@ pub struct KitConfig {
     pub cmdline: String,
     // the path to the kernel bzImage
     pub kernel: String,
+    pub boot_protocol: String,
 }
 
 impl KitConfig {
@@ -116,17 +117,15 @@ pub async fn build() -> Result<()> {
         format!(
             r#"
 TIMEOUT=5
-GRAPHICS=no
-TEXTMODE=yes
 :Linux
 
-PROTOCOL=linux
+PROTOCOL={}
 KERNEL_PARTITION=0
-KERNEL_PATH=boot://{}
-KERNEL_PROTO=linux
-CMDLINE="{}"
+KERNEL_PATH={}
+KERNEL_PROTO={}
+KERNEL_CMDLINE="{}"
             "#,
-            config.kernel, config.cmdline
+            config.boot_protocol, config.kernel, config.boot_protocol, config.cmdline
         )
         .as_bytes(),
     )?;
