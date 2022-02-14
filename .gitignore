@@ -13,6 +13,4 @@ build
 *.tgz
 *.zip
 *.tar.bz2
-data
-/kernel
 kit.toml

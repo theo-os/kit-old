@@ -5,9 +5,15 @@ use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Mapping {
+    pub source: String,
+    pub target: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KitConfig {
     pub images: Vec<String>,
-    pub folders: Vec<String>,
+    pub mappings: Vec<Mapping>,
     pub cmdline: String,
     // the path to the kernel bzImage
     pub kernel: String,
@@ -78,9 +84,12 @@ pub async fn build() -> Result<()> {
         debug!("{}", String::from_utf8_lossy(&output.stdout));
     }
 
-    for folder in config.folders {
-        debug!("Copying folder {}", folder);
-        let cmd = format!("cp -r {}/* {}", folder, rootfs_path);
+    for mapping in config.mappings {
+        debug!("Copying folder {}", mapping.source);
+        let cmd = format!(
+            "cp -r {} {}{}",
+            mapping.source, rootfs_path, mapping.target
+        );
         let output = std::process::Command::new("sh")
             .arg("-c")
             .arg(cmd)
@@ -120,12 +129,10 @@ TIMEOUT=5
 :Linux
 
 PROTOCOL={}
-KERNEL_PARTITION=0
 KERNEL_PATH={}
-KERNEL_PROTO={}
 KERNEL_CMDLINE="{}"
             "#,
-            config.boot_protocol, config.kernel, config.boot_protocol, config.cmdline
+            config.boot_protocol, config.kernel, config.cmdline
         )
         .as_bytes(),
     )?;
