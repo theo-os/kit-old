@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf};
+use std::{borrow::BorrowMut, io::Write, path::PathBuf};
 
 use anyhow::{Context, Result};
 use log::{debug, info};
@@ -46,6 +46,7 @@ pub async fn build() -> Result<()> {
     let rootfs_path = rootfs_path.to_str().unwrap();
 
     std::fs::create_dir_all(rootfs_path).context("Failed to create rootfs directory")?;
+    std::fs::create_dir_all(format!("{}/EFI/BOOT", rootfs_path))?;
 
     info!("Copying images");
 
@@ -86,10 +87,7 @@ pub async fn build() -> Result<()> {
 
     for mapping in config.mappings {
         debug!("Copying folder {}", mapping.source);
-        let cmd = format!(
-            "cp -r {} {}{}",
-            mapping.source, rootfs_path, mapping.target
-        );
+        let cmd = format!("cp -r {} {}{}", mapping.source, rootfs_path, mapping.target);
         let output = std::process::Command::new("sh")
             .arg("-c")
             .arg(cmd)
@@ -125,12 +123,15 @@ pub async fn build() -> Result<()> {
     file.write_all(
         format!(
             r#"
-TIMEOUT=5
+TIMEOUT=3
+DEFAULT_ENTRY=1
+GRAPHICS=yes
+VERBOSE=yes
 :Linux
 
 PROTOCOL={}
 KERNEL_PATH={}
-KERNEL_CMDLINE="{}"
+KERNEL_CMDLINE={}
             "#,
             config.boot_protocol, config.kernel, config.cmdline
         )
