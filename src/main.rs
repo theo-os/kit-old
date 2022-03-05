@@ -87,7 +87,16 @@ pub async fn build() -> Result<()> {
 
     for mapping in config.mappings {
         debug!("Copying folder {}", mapping.source);
-        let cmd = format!("cp -r {} {}{}", mapping.source, rootfs_path, mapping.target);
+
+        let mapping_target = PathBuf::from(mapping.target.as_str());
+        let mapping_target_dir = mapping_target.parent();    
+
+        if mapping_target_dir.is_some() && !mapping_target.parent().unwrap().exists() {
+            std::fs::create_dir_all(mapping_target.parent().unwrap())?;
+        }
+
+        // TODO: fs_extra
+        let cmd = format!("cp -r {} {}/{}", mapping.source, rootfs_path, mapping.target);
         let output = std::process::Command::new("sh")
             .arg("-c")
             .arg(cmd)
@@ -221,6 +230,22 @@ KERNEL_CMDLINE={}
         "A bootable disk image has been placed in: {} as os.iso",
         build_dir
     );
+
+    let cmd = format!(
+        "mke2fs -F -L root -N 0 -D {} -m 5 -t ext4 {}/rootfs.ext4",
+        image_path, build_dir
+    );
+
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .stderr(std::process::Stdio::inherit())
+        .output()
+        .context("Failed to create ext4 filesystem")?;
+
+    debug!("{}", String::from_utf8_lossy(&output.stdout));
+
+    info!("Created a ext4 root filesystem");
 
     Ok(())
 }
