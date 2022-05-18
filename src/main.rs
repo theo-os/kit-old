@@ -244,8 +244,8 @@ KERNEL_CMDLINE={}
     );
 
     let cmd = format!(
-        "mke2fs -F -L root -N 0 -D {} -m 5 -t ext4 {}/rootfs.ext4",
-        image_path, build_dir
+        "truncate -s 5G {}/rootfs.img && sudo mkfs.btrfs {}/rootfs.img && sudo mkdir -p /mnt/rootfs && sudo mount -o loop {}/rootfs.img /mnt/rootfs && sudo cp -r {}/* /mnt/rootfs/ && sudo btrfs filesystem resize max /mnt/rootfs && sudo umount /mnt/rootfs",
+        build_dir, build_dir, build_dir, image_path
     );
 
     let output = std::process::Command::new("sh")
@@ -253,11 +253,11 @@ KERNEL_CMDLINE={}
         .arg(cmd)
         .stderr(std::process::Stdio::inherit())
         .output()
-        .context("Failed to create ext4 filesystem")?;
+        .context("Failed to create root filesystem")?;
 
     debug!("{}", String::from_utf8_lossy(&output.stdout));
 
-    info!("Created a ext4 root filesystem");
+    info!("Created a root filesystem");
 
     Ok(())
 }
