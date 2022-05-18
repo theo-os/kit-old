@@ -4,8 +4,9 @@ A linux-kit inspired tool that creates bootable disk images from docker images.
 
 ## Requirements
 
+- an existing linux system
 - podman
-- grub
+- btrfs-progs
 - [rust and cargo](https://rustup.rs)
 - [undocker](https://git.sr.ht/~motiejus/undocker)
 
@@ -17,20 +18,22 @@ RUST_LOG=debug cargo run
 
 ## How It Works
 
-- Reads a config file at kit.hjson
+- Reads a config file at kit.toml
 - For each image specified in **images**, Kit automatically downloads and extracts its contents using skopeo and undocker.
-- Writes a grub.cfg file and appends the **cmdline** and **kernel path** (eg. /kernel).
-- grub-mkrescue is used to create the final ISO image.
+- Writes a limine.cfg file and appends the **cmdline** and **kernel path** (eg. /kernel).
 
 ## Example Config
 
-```json
-{
-    "images": [
-        "docker.flowtr.dev/timdows/kernel:latest",
-        "docker.io/busybox:latest"
-    ],
-    "kernel": "/kernel",
-    "cmdline": "console=tty0 console=ttyS0 console=ttyAMA0 root=/dev/sda3 init=/bin/sh"
-}
+```toml
+images = [
+    "docker.flowtr.dev/theos/kernel:latest",
+    "docker.flowtr.dev/theos/vsh:latest",
+    "docker.flowtr.dev/theos/core:latest",
+    "docker.flowtr.dev/theos/coreutils:latest",
+]
+folders = []
+kernel = "/kernel/bzImage"
+cmdline = "console=tty0 console=ttyS0 console=ttyAMA0 ro
+ot=/dev/sda rw init=/bin/theos-init"
+boot_protocol = "linux"
 ```
