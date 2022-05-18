@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, io::Write, path::PathBuf};
+use std::{io::Write, path::PathBuf};
 
 use anyhow::{Context, Result};
 use log::{debug, info};
@@ -21,7 +21,9 @@ pub struct KitConfig {
 }
 
 impl KitConfig {
-    pub fn from_file(path: &str) -> Result<KitConfig, Box<dyn std::error::Error>> {
+    pub fn from_file(
+        path: &str,
+    ) -> Result<KitConfig, Box<dyn std::error::Error>> {
         let file = std::fs::read_to_string(path)?;
         let config: KitConfig = toml::from_str(&file)?;
         Ok(config)
@@ -40,12 +42,14 @@ pub async fn build() -> Result<()> {
 
     // Create a build directory
     let build_dir = "./build";
-    std::fs::create_dir_all(build_dir).context("Failed to create build directory")?;
+    std::fs::create_dir_all(build_dir)
+        .context("Failed to create build directory")?;
 
     let rootfs_path = PathBuf::from(build_dir).join("rootfs");
     let rootfs_path = rootfs_path.to_str().unwrap();
 
-    std::fs::create_dir_all(rootfs_path).context("Failed to create rootfs directory")?;
+    std::fs::create_dir_all(rootfs_path)
+        .context("Failed to create rootfs directory")?;
     std::fs::create_dir_all(format!("{}/EFI/BOOT", rootfs_path))?;
 
     info!("Copying images");
@@ -89,14 +93,19 @@ pub async fn build() -> Result<()> {
         debug!("Copying folder {}", mapping.source);
 
         let mapping_target = PathBuf::from(mapping.target.as_str());
-        let mapping_target_dir = mapping_target.parent();    
+        let mapping_target_dir = mapping_target.parent();
 
-        if mapping_target_dir.is_some() && !mapping_target.parent().unwrap().exists() {
+        if mapping_target_dir.is_some()
+            && !mapping_target.parent().unwrap().exists()
+        {
             std::fs::create_dir_all(mapping_target.parent().unwrap())?;
         }
 
         // TODO: fs_extra
-        let cmd = format!("cp -r {} {}/{}", mapping.source, rootfs_path, mapping.target);
+        let cmd = format!(
+            "cp -r {} {}/{}",
+            mapping.source, rootfs_path, mapping.target
+        );
         let output = std::process::Command::new("sh")
             .arg("-c")
             .arg(cmd)
@@ -151,20 +160,23 @@ KERNEL_CMDLINE={}
     let image_path = PathBuf::from(build_dir).join("iso");
     let image_path = image_path.to_str().unwrap();
 
-    std::fs::create_dir_all(image_path).context("Failed to create image directory")?;
+    std::fs::create_dir_all(image_path)
+        .context("Failed to create image directory")?;
 
     // create boot/grub in iso/
     let bootloader_dir = PathBuf::from(image_path).join("boot");
     let bootloader_dir = bootloader_dir.to_str().unwrap();
 
-    std::fs::create_dir_all(bootloader_dir).context("Failed to create grub directory")?;
+    std::fs::create_dir_all(bootloader_dir)
+        .context("Failed to create grub directory")?;
 
     // create rootfs/{etc,sys,proc,run,tmp,dev} if they don't exist
     let paths = vec!["etc", "sys", "proc", "run", "tmp", "dev", "oldroot"];
     for path in paths {
         let path = PathBuf::from(rootfs_path).join(path);
         if !path.exists() {
-            std::fs::create_dir_all(&path).context("Failed to create directory")?;
+            std::fs::create_dir_all(&path)
+                .context("Failed to create directory")?;
         }
     }
 
@@ -252,7 +264,9 @@ KERNEL_CMDLINE={}
 
 #[tokio::main]
 async fn main() {
-    env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
+    env_logger::init_from_env(
+        env_logger::Env::default().default_filter_or("info"),
+    );
 
     if let Err(e) = build().await {
         eprintln!("{}", e);
